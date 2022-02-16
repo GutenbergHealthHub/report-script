@@ -1,2 +1,5 @@
 while True:
-    temp = input("Hello World!")
+    try:
+        temp = input("Hello World!")
+    except Exception:
+        print("Error")
