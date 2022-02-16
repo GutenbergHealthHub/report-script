@@ -16,4 +16,7 @@ RUN chmod 0644 /etc/cron.d/report-script-cron
 
 RUN crontab /etc/cron.d/report-script-cron
 
+RUN chgrp -R 0 /script && \
+    chmod -R g=u /script
+
 CMD ["/bin/bash", "-c", "--", "while true; do sleep 30; done;" ]
