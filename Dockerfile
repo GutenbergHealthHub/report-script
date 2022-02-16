@@ -13,3 +13,6 @@ RUN apt-get update && apt-get install -y \
 RUN chmod 0644 /etc/cron.d/report-script-cron
 
 RUN crontab /etc/cron.d/report-script-cron
+
+
+CMD python
