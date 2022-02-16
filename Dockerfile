@@ -2,6 +2,7 @@ FROM python:3.8
 
 COPY report_script.py /script/
 COPY requirements.txt /script/
+COPY app .
 
 COPY report-script-cron etc/cron.d/report-script-cron
 
