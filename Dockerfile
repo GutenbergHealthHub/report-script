@@ -9,6 +9,7 @@ COPY report-script-cron /etc/cron.d/report-script-cron
 RUN apt-get update && apt-get install -y \
     cron \
     postgresql \
+    nano \
     && pip install -r /script/requirements.txt
 
 RUN chmod 0644 /etc/cron.d/report-script-cron
