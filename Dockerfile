@@ -12,11 +12,11 @@ RUN apt-get update && apt-get install -y \
     nano \
     && pip install -r /script/requirements.txt
 
-RUN chmod 0644 /etc/cron.d/report-script-cron
+RUN chmod 0644 /etc/cron.d/report-script-cron && \
+    crontab /etc/cron.d/report-script-cron && \
+    chgrp -R 0 /script && \
+    chmod -R g=u /script && \
+    chmod -R 777 /run 
 
-RUN crontab /etc/cron.d/report-script-cron
-
-RUN chgrp -R 0 /script && \
-    chmod -R g=u /script
 
 CMD ["/bin/bash", "-c", "--", "while true; do sleep 30; done;" ]
