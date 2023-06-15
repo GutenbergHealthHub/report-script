@@ -1,85 +1,87 @@
 kind: Template
 apiVersion: template.openshift.io/v1
 metadata:
-  name: report-script-template
+  name: compass-report-script
   annotations:
-    description: "Template for the set up of the egePan mobile backend and PostgreSQL database service on OpenShift."
-    tags: "egePan,nodejs,backend,database,postgresql"
+    description: "Template to generate a report script which when triggered by the cronjob writes some status data to a google sheet"
+    tags: "COMPASS, Python, Google Sheets"
 objects:
   - kind: Secret
-    apiVersion: 1
-    name:
-  - kind: ImageStream
-    apiVersion: image.openshift.io/v1
+    apiVersion: v1
     metadata:
-      annotations:
-        app.openshift.io/vcs-ref: main
-        app.openshift.io/vcs-uri: ${APP_GIT_URL}
-      name: report-script
+      name: google-services-credentials
+      labels: 
+        app: compass-backend
+    type: Opaque
+    data:
+      google-services-credentials: ${GOOGLE_SERVICES_JSON}
+  - kind: Secret
+    apiVersion: v1
+    metadata:
+      name: spreadsheet-id
       labels:
-        app: report-script
+        app: compass-backend
+        app.kubernetes.io/component: mobile-backend
+        app.kubernetes.io/name: ${APP_NAME}
+        app.kubernetes.io/instance: ${APP_NAME}-${INSTANCE_IDENTIFIER}
+        app.kubernetes.io/part-of: ${HIGH_LVL_APP_NAME}
+  - kind: BuildConfig
+    apiVersion: build.openshift.io/v1
+    metadata:
+      name: report-script
+      annotations:
+        app.openshift.io/vcs-ref: ${GIT_BRANCH}
+        app.openshift.io/vcs-uri: ${APP_GIT_URL}
         app.kubernetes.io/component: mobile-backend
         app.kubernetes.io/name: ${APP_NAME}
         app.kubernetes.io/instance: ${APP_NAME}-${INSTANCE_IDENTIFIER}
         app.kubernetes.io/part-of: ${HIGH_LVL_APP_NAME}
         app.openshift.io/runtime: python
-        app.openshift.io/runtime-version: "3.8"
-    spec: {}
-  - kind: BuildConfig
-    apiVersion: build.openshift.io/v1
-    metadata:
-      name: mobile-backend
-      annotations:
-        app.openshift.io/vcs-ref: ${GIT_BRANCH}
-        app.openshift.io/vcs-uri: ${APP_GIT_URL}
+        app.openshift.io/runtime-version: '3.9-ubi8'
       labels:
-        app: mobile-backend
-        app.kubernetes.io/component: mobile-backend
-        app.kubernetes.io/name: ${APP_NAME}
-        app.kubernetes.io/instance: ${APP_NAME}-${INSTANCE_IDENTIFIER}
-        app.kubernetes.io/part-of: ${HIGH_LVL_APP_NAME}
-        app.openshift.io/runtime: nodejs
-        app.openshift.io/runtime-version: "12"
-    spec:
-      nodeSelector: null
-      output:
-        to:
-          kind: ImageStreamTag
-          name: report-script
-      resources: {}
-      successfulBuildsHistoryLimit: 5
-      failedBuildsHistoryLimit: 5
-      strategy:
-        type: Source
-        sourceStrategy:
-          from:
-            kind: ImageStreamTag
-            namespace: openshift
-            name: "python:3.8"
-      postCommit: {}
-      source:
-        type: Git
-        git:
-          uri: ${APP_GIT_URL}
-          ref: ${GIT_BRANCH}
-        contextDir: /
-        sourceSecret:
-          name: mobile-backend-git-access-cert
-      runPolicy: Serial
+        app: compass-backend
+      spec:
+          nodeSelector: null
+          output:
+            to:
+              kind: ImageStreamTag
+              name: report-script
+          resources: {}
+          successfulBuildsHistoryLimit: 5
+          failedBuildsHistoryLimit: 5
+          strategy:
+            type: Docker
+            dockerStrategy:
+              from:
+                kind: ImageStream
+                namespace: openshift
+                name: 'python:3.9-ubi8'
+          postCommit: {}
+          source: 
+            type: Git
+            git:
+              uri: ${APP_GIT_URL}
+              ref: ${GIT_BRANCH}
+            contextDir: /
+            sourceSecret:
+              name: mobile-backend-git-access-cert
+          triggers:
+            - type: ConfigChange
+          runPolicy: serial
   - kind: DeploymentConfig
-    apiVersion: apps.openshift.io/v1
-    metadata:
+    apiVersion: app.openshift.io/v1
+    metadata: 
       annotations:
         app.openshift.io/vcs-uri: ${APP_GIT_URL}
-      name: mobile-backend
+      name: report-script
       labels:
-        app: mobile-backend
-        app.kubernetes.io/component: mobile-backend
-        app.kubernetes.io/name: ${APP_NAME}
+        app: compass-backend
+        app.kubernetes.io/component: report-script
+        app.kubernetes.io/name: report-script
         app.kubernetes.io/instance: ${APP_NAME}-${INSTANCE_IDENTIFIER}
-        app.kubernetes.io/part-of: ${HIGH_LVL_APP_NAME}
-        app.openshift.io/runtime: nodejs
-        app.openshift.io/runtime-version: "12"
+        app.kubernetes.io/part-of: ¢{HIGH_LVL_APP_NAME}
+        app.openshift.io/runtime: python
+        app.openshift.io/runtime-version: '3.9-ubi-8'
     spec:
       strategy:
         type: Rolling
@@ -95,94 +97,101 @@ objects:
         - type: ImageChange
           imageChangeParams:
             automatic: true
-            containerNames:
-              - mobile-backend
+            containerName: report-script
             from:
               kind: ImageStreamTag
-              name: "mobile-backend:${ENV}"
+              name: report-script:prod
         - type: ConfigChange
       replicas: 1
       revisionHistoryLimit: 10
       test: false
       selector:
-        app: mobile-backend
-        deploymentconfig: mobile-backend
+        app: report-script
+        deploymentconfig: report-script
       template:
         metadata:
           labels:
-            app: mobile-backend
-            deploymentconfig: mobile-backend
+            app: report-script
+            deploymentconfig: report-script
         spec:
           containers:
             - name: report-script
               envFrom:
+                - secretRef: 
+                  name: database-creds
                 - secretRef:
-                    name: database-creds
+                  name: mobile-backend-env
                 - secretRef:
-                    name: mobile-backend-signing-key-pair
-                - configMapRef:
-                    name: mobile-backend-env
+                  name: spreadsheet-id
               resources: {}
               env:
-              - name: GOOGLE_APPLICATION_CREDENTIALS
-                value: /opt/app-root/secrets/google-services.json
+                - name: GOOGLE_APPLICATION_CREDENTIALS
+                  value: /opt/app-root/secrets/google-services-credentials.json
               volumeMounts:
-              - name: secrets
-                mountPath: /opt/app-root/secrets
-                readOnly: true
-      volumes:
-        - name: secrets
-          secret:
-            secretName: google-services-secret
+                - name: secrets
+                  mountPath: /opt/app-root/secrets
+                  readOnly: true
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
               imagePullPolicy: Always
+          volumes:
+            - name: secrets
+              secret:
+                secretName: google-services-credentials
           restartPolicy: Always
           terminationGracePeriodSeconds: 30
           dnsPolicy: ClusterFirst
           securityContext: {}
           schedulerName: default-scheduler
+  - kind: CronJob
+    apiVersion: batch/v1
+    metadata:
+      labels:
+        app: report-script
+        app.kubernetes.io/component: report-script
+        app.kubernetes.io/name: report-script
+        app.kubernetes.io/instance: ${APP_NAME}-${INSTANCE_IDENTIFIER}
+        app.kubernetes.io/part-of: ¢{HIGH_LVL_APP_NAME}
+    spec:
+      schedule: '0 6 * * 5'
+      jobTemplate:
+        spec:
+          parallelism: 1
+          selector: report-script
+          template:
+            - kind: Job
+              apiVersion: batch/v1
+              metadata:
+                name: report-script
+              spec:
+                template:
+                  spec:
+                    containers:
+                      - name: report-script
+                        image: report-script:prod
+                        command: python3 report-script.py
+                    restartPolicy: Never
+                backOffLimit: 4
+      timeZone: 'Europe/Berlin'
 parameters:
   - name: APP_GIT_URL
-    description: The Git URL of the application source code
-    required: true
-  - name: APP_NAME
-    description: Name of the application
-    value: num-app
-  - name: DATABASE_HOST
-    description: Name of database host
-    value: database
-  - name: DATABASE_NAME
-    description: Name of the PostgreSQL database accessed.
-    displayName: PostgreSQL Database Name
-    required: true
-  - name: DATABASE_PORT
-    description: Name of database port
-    value: "5432"
-  - name: DATABASE_USER
-    description: Username for PostgreSQL user that will be used for accessing the database.
-    displayName: PostgreSQL Connection Username
-    from: user[A-Z0-9]{3}
-    generate: expression
+    description: The Git URL for the source code
     required: true
   - name: GIT_BRANCH
     description: The Git branch that should be used for new builds
     value: main
+  - name: APP_NAME
+    description: name of the application
+    required: true
+  - name: GOOGLE_SERVICES_JSON
+    description: google-services-credentials required to access the spreadsheet
+    required: true
+  - name: SPREADSHEET_ID
+    description: ID of the spreadsheet to which the application shall write the data
   - name: HIGH_LVL_APP_NAME
     description: Name of the higher level application that a resource is part of
-    value: egePan
+    value: SAM-LMU
   - name: INSTANCE_IDENTIFIER
     description: Unique identifier for resources
     generate: expression
-    from: "[a-zA-Z0-9]{5}"
-  - name: MEMORY_LIMIT
-    description: Maximum amount of memory the container can use.
-    displayName: Memory Limit
-    required: true
-    value: 512Mi
-  - name: SSH_PRIVATE_KEY
-    description: Private Key for access to Git
-    required: true
-  - name: GOOGLE_API_CREDENTIALS
-    description: credentials to access the google api
-    required: true
+    from: '[a-zA-Z0-9]{5}'

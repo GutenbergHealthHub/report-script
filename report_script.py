@@ -6,15 +6,14 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 import psycopg2
-
-import env as ENV
+from os import environ
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-SERVICE_ACCOUNT_FILE = 'credentials.json'
+SERVICE_ACCOUNT_FILE = 'google-services-credentials.json'
 
 # The ID and range of a sample spreadsheet.
-SPREADSHEET_ID = '1Kd4pF9d5GASHuUq0s1AywWsv4S5cV_JQqFAnFwdpEbA'
+SPREADSHEET_ID = environ["SPREADSHEET_ID"]
 RANGE_NAME = 'Data'
 
 COUNT_PARTICIPANTS_QUERY= """
@@ -37,7 +36,7 @@ COUNT_QUEUE_DISTINCT_QUERY= """
 
 def main():
     ## STEP 1: Get data from DB ##
-    conn = psycopg2.connect(host=ENV.DB_HOST, port=ENV.DB_PORT, dbname=ENV.DB_NAME, user=ENV.USER, password=ENV.PASSWORD)
+    conn = psycopg2.connect(host=environ["DB_HOST"], port=environ["DB_PORT"], dbname=environ["DB_NAME"], user=environ["USER"], password=environ["PASSWORD"])
     cursor = conn.cursor()
     
     cursor.execute(COUNT_PARTICIPANTS_QUERY)
