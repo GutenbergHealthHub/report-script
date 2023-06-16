@@ -34,6 +34,14 @@ COUNT_QUEUE_DISTINCT_QUERY= """
         queue
     """
 
+COUNT_ON_STUDY_QUERY= """
+    SELECT count (*)
+    FROM
+        studyparticipant
+    WHERE
+        status= 'on-study'
+    """
+
 def main():
     ## STEP 1: Get data from DB ##
     conn = psycopg2.connect(host=environ["DB_HOST"], port=environ["DB_PORT"], dbname=environ["DB_NAME"], user=environ["DB_USER"], password=environ["DB_PASSWORD"])
@@ -48,10 +56,13 @@ def main():
     cursor.execute(COUNT_QUEUE_DISTINCT_QUERY)
     queue_count_distinct = int(cursor.fetchone()[0])
 
+    cursor.execute(COUNT_ON_STUDY_QUERY)
+    participant_on_study = int(cursor.fetchone()[0])
+
     now = datetime.datetime.now()
     date = now.strftime("%d") + "." +  now.strftime("%m") + "." + now.strftime("%G")
     
-    values = [[date, participant_count, queue_count, queue_count_distinct]]
+    values = [[date, participant_count, queue_count, queue_count_distinct, participant_on_study]]
     body = {'values': values}
 
     credentials = service_account.Credentials.from_service_account_file(
@@ -61,7 +72,7 @@ def main():
         service = build('sheets', 'v4', credentials=credentials)
         result = service.spreadsheets().values().append(
             spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME, body=body, valueInputOption="RAW").execute()
-        print(f'${result.get("updates").get("updatedCells")} cells appended')
+        print(f'{result.get("updates").get("updatedCells")} cells appended')
 
     except HttpError as err:
         print(err)
