@@ -10,11 +10,11 @@ objects:
     apiVersion: v1
     metadata:
       name: google-services-credentials
-      labels: 
+      labels:
         app: compass-backend
     type: Opaque
     data:
-      google-services-credentials: ${GOOGLE_SERVICES_JSON}
+      google-services-credentials.json: ${GOOGLE_SERVICES_JSON}
   - kind: Secret
     apiVersion: v1
     metadata:
@@ -37,112 +37,53 @@ objects:
         app.kubernetes.io/instance: ${APP_NAME}-${INSTANCE_IDENTIFIER}
         app.kubernetes.io/part-of: ${HIGH_LVL_APP_NAME}
         app.openshift.io/runtime: python
-        app.openshift.io/runtime-version: '3.9-ubi8'
+        app.openshift.io/runtime-version: "3.9-ubi8"
       labels:
         app: compass-backend
       spec:
-          nodeSelector: null
-          output:
-            to:
-              kind: ImageStreamTag
-              name: report-script
-          resources: {}
-          successfulBuildsHistoryLimit: 5
-          failedBuildsHistoryLimit: 5
-          strategy:
-            type: Docker
-            dockerStrategy:
-              from:
-                kind: ImageStream
-                namespace: openshift
-                name: 'python:3.9-ubi8'
-          postCommit: {}
-          source: 
-            type: Git
-            git:
-              uri: ${APP_GIT_URL}
-              ref: ${GIT_BRANCH}
-            contextDir: /
-            sourceSecret:
-              name: mobile-backend-git-access-cert
-          triggers:
-            - type: ConfigChange
-          runPolicy: serial
-  - kind: DeploymentConfig
-    apiVersion: app.openshift.io/v1
-    metadata: 
+        nodeSelector: null
+        output:
+          to:
+            kind: ImageStreamTag
+            name: report-script
+        resources: {}
+        successfulBuildsHistoryLimit: 5
+        failedBuildsHistoryLimit: 5
+        strategy:
+          type: Docker
+          dockerStrategy:
+            from:
+              kind: ImageStream
+              namespace: openshift
+              name: "python:3.9-ubi8"
+        postCommit: {}
+        source:
+          type: Git
+          git:
+            uri: ${APP_GIT_URL}
+            ref: ${GIT_BRANCH}
+          contextDir: /
+          sourceSecret:
+            name: mobile-backend-git-access-cert
+        triggers:
+          - type: ConfigChange
+        runPolicy: serial
+  - kind: ImageStream
+    apiVersion: image.openshift.io/v1
+    metadata:
       annotations:
+        app.openshift.io/vcs-ref: ${GIT_BRANCH}
         app.openshift.io/vcs-uri: ${APP_GIT_URL}
       name: report-script
       labels:
-        app: compass-backend
+        app: sa-lmu
         app.kubernetes.io/component: report-script
-        app.kubernetes.io/name: report-script
+        app.kubernetes.io/name: ${APP_NAME}
         app.kubernetes.io/instance: ${APP_NAME}-${INSTANCE_IDENTIFIER}
-        app.kubernetes.io/part-of: ¢{HIGH_LVL_APP_NAME}
+        app.kubernetes.io/part-of: ${HIGH_LVL_APP_NAME}
         app.openshift.io/runtime: python
-        app.openshift.io/runtime-version: '3.9-ubi-8'
-    spec:
-      strategy:
-        type: Rolling
-        rollingParams:
-          updatePeriodSeconds: 1
-          intervalSeconds: 1
-          timeoutSeconds: 600
-          maxUnavailable: 25%
-          maxSurge: 25%
-        resources: {}
-        activeDeadlineSeconds: 21600
-      triggers:
-        - type: ImageChange
-          imageChangeParams:
-            automatic: true
-            containerName: report-script
-            from:
-              kind: ImageStreamTag
-              name: report-script:prod
-        - type: ConfigChange
-      replicas: 1
-      revisionHistoryLimit: 10
-      test: false
-      selector:
-        app: report-script
-        deploymentconfig: report-script
-      template:
-        metadata:
-          labels:
-            app: report-script
-            deploymentconfig: report-script
-        spec:
-          containers:
-            - name: report-script
-              envFrom:
-                - secretRef: 
-                  name: database-creds
-                - secretRef:
-                  name: mobile-backend-env
-                - secretRef:
-                  name: spreadsheet-id
-              resources: {}
-              env:
-                - name: GOOGLE_APPLICATION_CREDENTIALS
-                  value: /opt/app-root/secrets/google-services-credentials.json
-              volumeMounts:
-                - name: secrets
-                  mountPath: /opt/app-root/secrets
-                  readOnly: true
-              terminationMessagePath: /dev/termination-log
-              terminationMessagePolicy: File
-              imagePullPolicy: Always
-          volumes:
-            - name: secrets
-              secret:
-                secretName: google-services-credentials
-          restartPolicy: Always
-          terminationGracePeriodSeconds: 30
-          dnsPolicy: ClusterFirst
-          securityContext: {}
-          schedulerName: default-scheduler
+        app.openshift.io/runtime-version: "3.9-ubi8"
+    spec: {}
   - kind: CronJob
     apiVersion: batch/v1
     metadata:
@@ -153,26 +94,36 @@ objects:
         app.kubernetes.io/instance: ${APP_NAME}-${INSTANCE_IDENTIFIER}
         app.kubernetes.io/part-of: ¢{HIGH_LVL_APP_NAME}
     spec:
-      schedule: '0 6 * * 5'
+      schedule: "0 8 * * 5"
+      failedJobsHistoryLimit: 5
+      successfulJobsHistoryLimit:
+      concurrencyPolicy: "Replace"
       jobTemplate:
         spec:
-          parallelism: 1
-          selector: report-script
           template:
-            - kind: Job
-              apiVersion: batch/v1
-              metadata:
-                name: report-script
-              spec:
-                template:
-                  spec:
-                    containers:
-                      - name: report-script
-                        image: report-script:prod
-                        command: python3 report-script.py
-                    restartPolicy: Never
-                backOffLimit: 4
-      timeZone: 'Europe/Berlin'
+            metadata:
+              name: report-script
+            spec:
+              containers:
+                - name: report-script
+                  image: report-script:prod
+                  envFrom:
+                    - secretRef:
+                      name: database-creds
+                    - configMapRef:
+                      name: mobile-backend-env
+                    - secretRef:
+                      name: spreadsheet-id
+                  volumeMounts:
+                - name: secrets
+                  mountPath: /opt/app-root/secrets
+                  readOnly: true
+                  command: ["python", "report-script.py"]
+              volumes:
+                - name: secrets
+                  secret:
+                    secretName: google-services-credentials
+              restartPolicy: Never
 parameters:
   - name: APP_GIT_URL
     description: The Git URL for the source code
@@ -194,4 +145,4 @@ parameters:
   - name: INSTANCE_IDENTIFIER
     description: Unique identifier for resources
     generate: expression
-    from: '[a-zA-Z0-9]{5}'
+    from: "[a-zA-Z0-9]{5}"
