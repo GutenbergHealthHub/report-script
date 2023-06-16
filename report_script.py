@@ -10,7 +10,7 @@ from os import environ
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-SERVICE_ACCOUNT_FILE = 'google-services-credentials.json'
+SERVICE_ACCOUNT_FILE = '/opt/app-root/secrets/google-services-credentials.json'
 
 # The ID and range of a sample spreadsheet.
 SPREADSHEET_ID = environ["SPREADSHEET_ID"]
