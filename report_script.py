@@ -36,7 +36,7 @@ COUNT_QUEUE_DISTINCT_QUERY= """
 
 def main():
     ## STEP 1: Get data from DB ##
-    conn = psycopg2.connect(host=environ["DB_HOST"], port=environ["DB_PORT"], dbname=environ["database-name"], user=environ["database-user"], password=environ["database-password"])
+    conn = psycopg2.connect(host=environ["DB_HOST"], port=environ["DB_PORT"], dbname=environ["DB_NAME"], user=environ["DB_USER"], password=environ["DB_PASSWORD"])
     cursor = conn.cursor()
     
     cursor.execute(COUNT_PARTICIPANTS_QUERY)
