@@ -3,7 +3,7 @@ FROM python:3.8
 COPY report_script.py .
 COPY requirements.txt .
 
-RUN yum update && yum install -y \
+RUN apk update && apk install -y \
     @postgresql \
     && pip install -r ./requirements.txt
 
